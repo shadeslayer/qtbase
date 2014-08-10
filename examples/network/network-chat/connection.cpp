@@ -41,6 +41,7 @@
 #include "connection.h"
 
 #include <QtNetwork>
+#include <KCompressionDevice>
 
 static const int TransferTimeout = 30 * 1000;
 static const int PongTimeout = 60 * 1000;
@@ -83,7 +84,12 @@ bool Connection::sendMessage(const QString &message)
 
     QByteArray msg = message.toUtf8();
     QByteArray data = "MESSAGE " + QByteArray::number(msg.size()) + ' ' + msg;
-    return write(data) == data.size();
+    QBuffer compressedBuffer;
+    KCompressionDevice zip(&compressedBuffer, false, KCompressionDevice::GZip);
+    zip.open(QIODevice::WriteOnly);
+    zip.write(data);
+    zip.close();
+    return write(compressedBuffer.data()) == compressedBuffer.size();
 }
 
 void Connection::timerEvent(QTimerEvent *timerEvent)
@@ -155,14 +161,14 @@ void Connection::sendPing()
         return;
     }
 
-    write("PING 1 p");
+    sendMessage("PING 1 p");
 }
 
 void Connection::sendGreetingMessage()
 {
     QByteArray greeting = greetingMessage.toUtf8();
     QByteArray data = "GREETING " + QByteArray::number(greeting.size()) + ' ' + greeting;
-    if (write(data) == data.size())
+    if (sendMessage(data))
         isGreetingMessageSent = true;
 }
 
@@ -249,18 +255,25 @@ bool Connection::hasEnoughData()
 
 void Connection::processData()
 {
-    buffer = read(numBytesForCurrentDataType);
-    if (buffer.size() != numBytesForCurrentDataType) {
+    QBuffer compressedDataBuffer;
+    compressedDataBuffer.setData(read(numBytesForCurrentDataType));
+
+    KCompressionDevice zip(&compressedDataBuffer, false /*magic*/, KCompressionDevice::GZip);
+
+    if (compressedDataBuffer.size() != numBytesForCurrentDataType) {
         abort();
         return;
     }
 
+    zip.open(QIODevice::ReadOnly);
+    buffer = zip.readAll();
+    zip.close();
     switch (currentDataType) {
     case PlainText:
         emit newMessage(username, QString::fromUtf8(buffer));
         break;
     case Ping:
-        write("PONG 1 p");
+        sendMessage("PONG 1 p");
         break;
     case Pong:
         pongTime.restart();

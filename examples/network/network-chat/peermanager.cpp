@@ -136,6 +136,7 @@ void PeerManager::readBroadcastDatagram()
                                          &senderIp, &senderPort) == -1)
             continue;
 
+        qDebug() << "Reading :" << datagram.data();
         QList<QByteArray> list = datagram.split('@');
         if (list.size() != 2)
             continue;

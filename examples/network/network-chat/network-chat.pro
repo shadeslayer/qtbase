@@ -10,7 +10,7 @@ SOURCES       = chatdialog.cpp \
                 peermanager.cpp \
                 server.cpp
 FORMS         = chatdialog.ui
-QT           += network widgets
+QT           += network widgets KArchive
 
 # install
 target.path = $$[QT_INSTALL_EXAMPLES]/network/network-chat
